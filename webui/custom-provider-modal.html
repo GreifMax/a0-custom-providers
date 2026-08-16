@@ -1,0 +1,213 @@
+<html>
+<head>
+  <title>Custom Provider</title>
+  <script type="module">
+    import { store } from "/plugins/custom_providers/webui/custom-provider-store.js";
+  </script>
+</head>
+<body>
+<div x-data>
+<template x-if="$store.customProviders">
+<div x-data="{
+       get cp() { return $store.customProviders; },
+       get form() { return $store.customProviders.form; }
+     }"
+     x-init="">
+
+  <div class="cp-header" style="margin-bottom:16px;">
+    <div class="section-title" style="margin:0;font-size:1.15rem;">
+      <span x-show="!cp._editingOriginalId">Add Custom Provider</span>
+      <span x-show="cp._editingOriginalId">Edit Custom Provider</span>
+    </div>
+    <div class="section-description">
+      Create OpenAI-compatible providers (e.g. NanoGPT) with their own URL and API key. They appear instantly in the Provider dropdown.
+      &nbsp; <a href="https://nano-gpt.com/api" target="_blank" style="opacity:0.8">NanoGPT docs ↗</a>
+    </div>
+  </div>
+
+  <!-- preset quick fill -->
+  <div class="field" style="margin-bottom:12px;">
+    <div class="field-label">
+      <div class="field-title">Quick fill</div>
+      <div class="field-description">Fill with a known preset or start blank.</div>
+    </div>
+    <div class="field-control" style="display:flex;gap:8px;">
+      <button type="button" class="btn btn-small" @click="cp.applyPreset('nano_gpt')">NanoGPT</button>
+      <span style="opacity:0.55;align-self:center;font-size:12px;">→ https://nano-gpt.com/api/v1</span>
+    </div>
+  </div>
+
+  <!-- Type -->
+  <div class="field">
+    <div class="field-label">
+      <div class="field-title">Provider type</div>
+      <div class="field-description">Where this provider appears.</div>
+    </div>
+    <div class="field-control">
+      <div style="display:flex;gap:12px;flex-wrap:wrap;">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="radio" value="chat" x-model="cp.form.type"> Chat</label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="radio" value="embedding" x-model="cp.form.type"> Embedding</label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="radio" value="both" x-model="cp.form.type"> Both</label>
+      </div>
+    </div>
+  </div>
+
+  <!-- Name -->
+  <div class="field">
+    <div class="field-label">
+      <div class="field-title">Display name *</div>
+      <div class="field-description">Shown in the Provider dropdown.</div>
+    </div>
+    <div class="field-control">
+      <input type="text" x-model="cp.form.name" @input="cp.onNameInput()" placeholder="e.g. NanoGPT, My vLLM, Local Ollama">
+    </div>
+  </div>
+
+  <!-- ID -->
+  <div class="field">
+    <div class="field-label">
+      <div class="field-title">Provider ID *</div>
+      <div class="field-description">Lowercase id: <code style=\"opacity:0.8\">a-z</code>, <code>0-9</code>, <code>_</code>, 3–25 chars. Auto-generated from name. Used for <code>API_KEY_{ID}</code>.</div>
+    </div>
+    <div class="field-control">
+      <input type="text" x-model="cp.form.id" @input="cp.onIdInput()" placeholder="e.g. nano_gpt">
+      <div style="font-size:11px;opacity:0.6;margin-top:4px;">Env var: <code x-text="'API_KEY_' + (cp.form.id || '...').toUpperCase()"></code></div>
+    </div>
+  </div>
+
+  <!-- litellm_provider -->
+  <div class="field">
+    <div class="field-label">
+      <div class="field-title">LiteLLM provider</div>
+      <div class="field-description">For OpenAI-compatible APIs keep <code>openai</code>.</div>
+    </div>
+    <div class="field-control">
+      <select x-model="cp.form.litellm_provider">
+        <template x-for="opt in cp.litellmOptions" :key="opt.value">
+          <option :value="opt.value" x-text="opt.label"></option>
+        </template>
+      </select>
+    </div>
+  </div>
+
+  <!-- api_base -->
+  <div class="field">
+    <div class="field-label">
+      <div class="field-title">API base URL *</div>
+      <div class="field-description">Full base, e.g. <code>https://nano-gpt.com/api/v1</code> or <code>http://localhost:8000/v1</code>. Stored as <code>kwargs.api_base</code>.</div>
+    </div>
+    <div class="field-control">
+      <input type="text" x-model="cp.form.api_base" placeholder="https://nano-gpt.com/api/v1">
+    </div>
+  </div>
+
+  <!-- models endpoint -->
+  <div class="field">
+    <div class="field-label">
+      <div class="field-title">Models list endpoint</div>
+      <div class="field-description">Endpoint for browsing models. Absolute URL or path (default <code>/v1/models</code>).</div>
+    </div>
+    <div class="field-control">
+      <input type="text" x-model="cp.form.models_endpoint" placeholder="/v1/models or https://.../v1/models">
+    </div>
+  </div>
+
+  <!-- default_base optional -->
+  <div class="field">
+    <div class="field-label">
+      <div class="field-title">Default base override</div>
+      <div class="field-description">Optional root for models search when endpoint is relative. Leave blank for auto.</div>
+    </div>
+    <div class="field-control">
+      <input type="text" x-model="cp.form.default_base" placeholder="https://nano-gpt.com">
+    </div>
+  </div>
+
+  <!-- api key -->
+  <div class="field">
+    <div class="field-label">
+      <div class="field-title">API key</div>
+      <div class="field-description">Saved to <code>.env</code> as <code>API_KEY_{ID}</code>, not in YAML. Leave blank to add later in API Keys.</div>
+    </div>
+    <div class="field-control" x-data="{ show:false }">
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input :type="show ? 'text' : 'password'" x-model="cp.form.api_key" placeholder="sk-..." style="flex:1 1 auto;">
+        <button type="button" class="btn btn-small" @click="show=!show" x-text="show ? 'Hide' : 'Show'"></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- api_key_mode -->
+  <div class="field">
+    <div class="field-label">
+      <div class="field-title">API key mode</div>
+    </div>
+    <div class="field-control">
+      <select x-model="cp.form.api_key_mode">
+        <option value="required">required</option>
+        <option value="optional">optional</option>
+        <option value="none">none (local / no key)</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- extra_headers -->
+  <div class="field">
+    <div class="field-label">
+      <div class="field-title">Extra headers</div>
+      <div class="field-description">One per line: <code>Header=Value</code>. Optional.</div>
+    </div>
+    <div class="field-control">
+      <textarea x-model="cp.form.extra_headers_text" rows="2" placeholder="X-Custom=foo&#10;Authorization=Bearer ..."></textarea>
+    </div>
+  </div>
+
+  <!-- kwargs -->
+  <div class="field">
+    <div class="field-label">
+      <div class="field-title">Extra kwargs</div>
+      <div class="field-description">One per line: <code>key=&quot;json_value&quot;</code>. Merged into provider <code>kwargs</code>.</div>
+    </div>
+    <div class="field-control">
+      <textarea x-model="cp.form.kwargs_text" rows="2" placeholder='timeout=\"120&quot;&#10;extra_body={&quot;foo&quot;:1}'></textarea>
+    </div>
+  </div>
+
+  <div x-show="cp.testResult" class="cp-test-result" style="margin:12px 0;font-size:13px;opacity:0.85;" x-text="cp.testResult"></div>
+
+  <div x-show="cp.error" class="plugin-settings-error" style="margin:12px 0;">
+    <x-icon name="error"></x-icon>
+    <span x-text="cp.error"></span>
+  </div>
+
+  <div class="modal-footer" data-modal-footer>
+    <button type="button" class="btn btn-cancel" @click="window.closeModal?.()" :disabled="cp.saving">Cancel</button>
+    <button type="button" class="btn btn-warn"
+            x-show="cp._editingOriginalId"
+            @click="$confirmClick($event, () => cp.deleteCurrent())"
+            :disabled="cp.saving">
+      <x-icon name="delete" style="font-size:16px;"></x-icon> Delete
+    </button>
+    <button type="button" class="btn"
+            @click="await cp.test()"
+            :disabled="cp.saving || cp.testing">
+      <span x-show="!cp.testing"><x-icon name="wifi_tethering" style="font-size:16px;"></x-icon> Test</span>
+      <span x-show="cp.testing"><x-icon class="spinning" name="progress_activity" style="font-size:16px;"></x-icon> Testing…</span>
+    </button>
+    <button type="button" class="btn btn-ok"
+            @click="await cp.save()"
+            :disabled="cp.saving">
+      <span x-show="!cp.saving" x-text="cp._editingOriginalId ? 'Save' : 'Create'"></span>
+      <span x-show="cp.saving"><x-icon class="spinning" name="progress_activity" style="font-size:16px;"></x-icon> Saving…</span>
+    </button>
+  </div>
+
+</div>
+</template>
+</div>
+<style>
+  .cp-header .section-description { opacity:0.75; font-size: 12px; margin-top:4px; }
+  .plugin-settings-error { color: var(--color-error, #c33); display:flex; gap:6px; align-items:center; font-size:13px; }
+</style>
+</body>
+</html>

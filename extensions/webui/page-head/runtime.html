@@ -1,0 +1,33 @@
+<script type="module">
+  import { store } from "/plugins/custom_providers/webui/custom-provider-store.js";
+  // delay to ensure Alpine store registry ready
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", () => store.init(), { once: true });
+  } else {
+    // wait a tick for Alpine init
+    setTimeout(() => store.init(), 400);
+  }
+  // also hook initFw_end for SPA navigations
+  document.addEventListener("webui-extensions-loaded", () => {
+    try { store.refreshList?.(); } catch {}
+  });
+</script>
+<style>
+  .cp-provider-actions .btn {
+    border: 1px solid var(--color-border, #3a3a3a);
+    background: var(--color-input, #1f1f1f);
+    border-radius: 6px;
+    cursor: pointer;
+    line-height: 1;
+  }
+  .cp-provider-actions .btn:hover {
+    background: var(--color-hover, #2a2a2a);
+    border-color: var(--color-accent, #5a7cff);
+  }
+  .cp-provider-actions .cp-add-btn {
+    color: var(--color-accent, #5a7cff);
+  }
+  .cp-add-btn x-icon, .cp-edit-btn x-icon {
+    display: inline-flex;
+  }
+</style>

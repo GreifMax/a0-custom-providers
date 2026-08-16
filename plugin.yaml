@@ -1,0 +1,7 @@
+name: custom_providers
+title: Custom Providers
+description: Add and manage custom OpenAI-compatible providers (e.g. NanoGPT) from the Model Setup UI. Includes + button next to the Provider dropdown.
+version: 1.0.2
+settings_sections: []
+per_project_config: false
+per_agent_config: false
