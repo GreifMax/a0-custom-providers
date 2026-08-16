@@ -1,4 +1,4 @@
-<img src="webui/thumbnail.png" alt="Custom Providers logo" width="96" align="left" style="margin-right: 16px;"/>
+![Custom Providers](webui/thumbnail.png)
 
 # Custom Providers for Agent Zero
 
