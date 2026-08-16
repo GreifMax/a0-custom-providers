@@ -40,7 +40,7 @@ chat:
    
    ```bash
    cd /a0/usr/plugins
-   git clone https://github.com/MaxGreif/a0-custom-providers
+   git clone https://github.com/GreifMax/a0-custom-providers
    ```
    
    or unzip into `/a0/usr/plugins/custom_providers/`.
