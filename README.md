@@ -39,8 +39,8 @@ chat:
 1. Download the plugin (clone this repo or grab the zip) into your Agent Zero **`usr/plugins/`** directory:
    
    ```bash
-   git clone https://github.com/GreifMax/a0-vision-sidecar
-   cp -r a0-vision-sidecar /a0/usr/plugins/vision_sidecar
+   git clone https://github.com/GreifMax/a0-custom-providers
+   cp -r a0-vision-sidecar /a0/usr/plugins/custom_providers
    # restart Agent Zero
    ```
    
