@@ -39,11 +39,12 @@ chat:
 1. Download the plugin (clone this repo or grab the zip) into your Agent Zero **`usr/plugins/`** directory:
    
    ```bash
-   cd /a0/usr/plugins
-   git clone https://github.com/GreifMax/a0-custom-providers
+   git clone https://github.com/GreifMax/a0-vision-sidecar
+   cp -r a0-vision-sidecar /a0/usr/plugins/vision_sidecar
+   # restart Agent Zero
    ```
    
-   or unzip into `/a0/usr/plugins/custom_providers/`.
+   or unzip into `/a0/usr/plugins/custom_providers/` and restart Agent Zero.
 
 2. Restart Agent Zero docker instance and the Web UI (CTRL+SHIFT+R).
 
