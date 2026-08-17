@@ -20,20 +20,7 @@
       <span x-show="cp._editingOriginalId">Edit Custom Provider</span>
     </div>
     <div class="section-description">
-      Create OpenAI-compatible providers (e.g. NanoGPT) with their own URL and API key. They appear instantly in the Provider dropdown.
-      &nbsp; <a href="https://nano-gpt.com/api" target="_blank" style="opacity:0.8">NanoGPT docs ↗</a>
-    </div>
-  </div>
-
-  <!-- preset quick fill -->
-  <div class="field" style="margin-bottom:12px;">
-    <div class="field-label">
-      <div class="field-title">Quick fill</div>
-      <div class="field-description">Fill with a known preset or start blank.</div>
-    </div>
-    <div class="field-control" style="display:flex;gap:8px;">
-      <button type="button" class="btn btn-small" @click="cp.applyPreset('nano_gpt')">NanoGPT</button>
-      <span style="opacity:0.55;align-self:center;font-size:12px;">→ https://nano-gpt.com/api/v1</span>
+      Create providers with their own URL and API key.
     </div>
   </div>
 
@@ -67,11 +54,10 @@
   <div class="field">
     <div class="field-label">
       <div class="field-title">Provider ID *</div>
-      <div class="field-description">Lowercase id: <code style=\"opacity:0.8\">a-z</code>, <code>0-9</code>, <code>_</code>, 3–25 chars. Auto-generated from name. Used for <code>API_KEY_{ID}</code>.</div>
+      <div class="field-description">Lowercase id: a-z, 0-9, _, 3–25 chars. Auto-generated from name.</div>
     </div>
     <div class="field-control">
       <input type="text" x-model="cp.form.id" @input="cp.onIdInput()" placeholder="e.g. nano_gpt">
-      <div style="font-size:11px;opacity:0.6;margin-top:4px;">Env var: <code x-text="'API_KEY_' + (cp.form.id || '...').toUpperCase()"></code></div>
     </div>
   </div>
 
@@ -79,7 +65,7 @@
   <div class="field">
     <div class="field-label">
       <div class="field-title">LiteLLM provider</div>
-      <div class="field-description">For OpenAI-compatible APIs keep <code>openai</code>.</div>
+      <div class="field-description">Protocol LiteLLM uses. Keep <code>openai</code> for OpenAI-compatible APIs.</div>
     </div>
     <div class="field-control">
       <select x-model="cp.form.litellm_provider">
@@ -94,7 +80,7 @@
   <div class="field">
     <div class="field-label">
       <div class="field-title">API base URL *</div>
-      <div class="field-description">Full base, e.g. <code>https://nano-gpt.com/api/v1</code> or <code>http://localhost:8000/v1</code>. Stored as <code>kwargs.api_base</code>.</div>
+      <div class="field-description">Root URL of the API, e.g. <code>https://nano-gpt.com/api/v1</code>.</div>
     </div>
     <div class="field-control">
       <input type="text" x-model="cp.form.api_base" placeholder="https://nano-gpt.com/api/v1">
@@ -105,10 +91,10 @@
   <div class="field">
     <div class="field-label">
       <div class="field-title">Models list endpoint</div>
-      <div class="field-description">Endpoint for browsing models. Absolute URL or path (default <code>/v1/models</code>).</div>
+      <div class="field-description">Path for listing models, relative to the API base, or a full URL. Default <code>/models</code>.</div>
     </div>
     <div class="field-control">
-      <input type="text" x-model="cp.form.models_endpoint" placeholder="/v1/models or https://.../v1/models">
+      <input type="text" x-model="cp.form.models_endpoint" placeholder="/models">
     </div>
   </div>
 
@@ -124,15 +110,16 @@
   </div>
 
   <!-- api key -->
-  <div class="field">
+  <div class="field field-full">
     <div class="field-label">
       <div class="field-title">API key</div>
-      <div class="field-description">Saved to <code>.env</code> as <code>API_KEY_{ID}</code>, not in YAML. Leave blank to add later in API Keys.</div>
     </div>
     <div class="field-control" x-data="{ show:false }">
-      <div style="display:flex;gap:8px;align-items:center;">
-        <input :type="show ? 'text' : 'password'" x-model="cp.form.api_key" placeholder="sk-..." style="flex:1 1 auto;">
-        <button type="button" class="btn btn-small" @click="show=!show" x-text="show ? 'Hide' : 'Show'"></button>
+      <div style="display:flex;gap:8px;align-items:center;width:100%;">
+        <input :type="show ? 'text' : 'password'" x-model="cp.form.api_key" @input="cp.onApiKeyInput()"
+               :placeholder="cp._editingOriginalId && cp.apiKeyStatus[cp._editingOriginalId] ? 'Key saved — press Show to view' : 'sk-...'"
+               style="flex:1 1 auto;">
+        <button type="button" class="btn btn-small" @click="show=!show; if(show) cp.revealKey()" x-text="show ? 'Hide' : 'Show'"></button>
       </div>
     </div>
   </div>
@@ -169,7 +156,7 @@
       <div class="field-description">One per line: <code>key=&quot;json_value&quot;</code>. Merged into provider <code>kwargs</code>.</div>
     </div>
     <div class="field-control">
-      <textarea x-model="cp.form.kwargs_text" rows="2" placeholder='timeout=\"120&quot;&#10;extra_body={&quot;foo&quot;:1}'></textarea>
+      <textarea x-model="cp.form.kwargs_text" rows="2" placeholder='timeout=120&#10;extra_body={"foo": 1}'></textarea>
     </div>
   </div>
 

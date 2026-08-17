@@ -27,6 +27,14 @@
   .cp-provider-actions .cp-add-btn {
     color: var(--color-accent, #5a7cff);
   }
+  .cp-provider-actions .btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+  .cp-provider-actions .btn:disabled:hover {
+    background: var(--color-input, #1f1f1f);
+    border-color: var(--color-border, #3a3a3a);
+  }
   .cp-add-btn x-icon, .cp-edit-btn x-icon {
     display: inline-flex;
   }

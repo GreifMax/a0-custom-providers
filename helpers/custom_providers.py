@@ -38,6 +38,70 @@ VALID_LITELLM_PROVIDERS = {
 VALID_TYPES = {"chat", "embedding", "both"}
 VALID_API_KEY_MODES = {"required", "optional", "none"}
 
+API_KEY_MASK_CHARS = {"•", "*"}
+
+
+def is_key_mask(value: str) -> bool:
+    """True when the value is just the UI mask (bullets/asterisks), not a real key."""
+    v = str(value or "").strip()
+    return bool(v) and set(v) <= API_KEY_MASK_CHARS
+
+
+def get_builtin_ids() -> set:
+    """Provider ids defined by the core (non-plugin) provider config."""
+    ids: set = set()
+    try:
+        base = files.get_abs_path("conf/model_providers.yaml")
+        if files.exists(base):
+            data = yaml.safe_load(files.read_file(base)) or {}
+            for section in (data or {}).values():
+                if isinstance(section, dict):
+                    ids.update(str(k).lower() for k in section.keys())
+    except Exception:
+        pass
+    return ids
+
+
+def find_conflicts(normalized: dict, original_id: str = "") -> list:
+    """Conflicts that should block saving: id collision with a built-in
+    provider, or an existing custom provider with the same display name or
+    api_base under a different id (prevents accidental duplicates)."""
+    conflicts: list = []
+    pid = str(normalized.get("id") or "").lower()
+    orig = str(original_id or "").strip().lower()
+    data = load_raw()
+
+    if pid and pid in get_builtin_ids():
+        conflicts.append(f"ID '{pid}' is already used by a built-in provider. Choose another id.")
+
+    name_low = str(normalized.get("name") or "").strip().lower()
+    base_norm = str(normalized.get("api_base") or "").strip().rstrip("/").lower()
+
+    for section in ("chat", "embedding"):
+        sec = data.get(section)
+        if not isinstance(sec, dict):
+            continue
+        for other_id, cfg in sec.items():
+            oid = str(other_id).lower()
+            if oid == pid or (orig and oid == orig):
+                continue
+            other = cfg or {}
+            oname = str(other.get("name") or oid).strip().lower()
+            obase = str((other.get("kwargs") or {}).get("api_base") or "").strip().rstrip("/").lower()
+            if oname and name_low and oname == name_low:
+                conflicts.append(
+                    f"A provider named '{other.get('name')}' already exists (id '{oid}'). Use a different display name or edit that provider."
+                )
+            elif obase and base_norm and obase == base_norm:
+                conflicts.append(
+                    f"Provider '{other.get('name')}' (id '{oid}') already uses this API base. Edit it instead of creating a duplicate."
+                )
+
+    seen: set = set()
+    return [c for c in conflicts if not (c in seen or seen.add(c))]
+
+
+
 
 def _yaml_abs() -> str:
     from helpers import plugins as plugins_helper

@@ -1,6 +1,2 @@
-# Custom provider storage. Managed by the plugin UI — do not edit while the UI is open.
-# Each entry is keyed by provider id. API keys are NOT stored here; they live in
-# your Agent Zero .env as API_KEY_<ID>.
-
 chat: {}
 embedding: {}

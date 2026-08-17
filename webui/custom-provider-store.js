@@ -3,6 +3,7 @@ import { callJsonApi } from "/js/api.js";
 
 const API = "plugins/custom_providers/custom_providers";
 const MODEL_CONFIG_API = "/plugins/_model_config/model_config_get";
+const KEY_MASK = "••••••••••••";
 
 function slugify(name) {
   return String(name || "")
@@ -16,15 +17,16 @@ function isValidId(id) {
   return /^[a-z][a-z0-9_]{2,24}$/.test(id);
 }
 
+// Sensible starting values (NanoGPT) — adjust for your own provider.
 function emptyForm() {
   return {
     type: "chat", // chat | embedding | both
-    id: "",
-    name: "",
+    id: "nano_gpt",
+    name: "NanoGPT",
     litellm_provider: "openai",
-    api_base: "",
+    api_base: "https://nano-gpt.com/api/v1",
     api_key: "",
-    models_endpoint: "/v1/models",
+    models_endpoint: "/models",
     default_base: "",
     api_key_mode: "required",
     extra_headers_text: "",
@@ -36,6 +38,7 @@ export const store = createStore("customProviders", {
   // state
   customIds: [],
   customRaw: {},
+  apiKeyStatus: {}, // provider id -> true when a key exists in .env
   loading: false,
   saving: false,
   testing: false,
@@ -70,15 +73,6 @@ export const store = createStore("customProviders", {
     { value: "nebius", label: "Nebius" },
   ],
 
-  presets: {
-    nano_gpt: {
-      name: "NanoGPT",
-      api_base: "https://nano-gpt.com/api/v1",
-      models_endpoint: "/v1/models",
-      litellm_provider: "openai",
-    },
-  },
-
   init() {
     this.refreshList();
     this._setupInjector();
@@ -94,6 +88,9 @@ export const store = createStore("customProviders", {
     }
     this.customIds = ids;
     this.customRaw = res?.custom || {};
+    if (res?.api_key_status && typeof res.api_key_status === "object") {
+      this.apiKeyStatus = { ...(this.apiKeyStatus || {}), ...res.api_key_status };
+    }
     globalThis.__customProviderIds = new Set(ids.map((s) => String(s).toLowerCase()));
   },
 
@@ -147,6 +144,8 @@ export const store = createStore("customProviders", {
 
     this.form = emptyForm();
     this.testResult = "";
+    this._idManuallyEdited = true; // editing: id only changes when user edits it
+    this._editingOriginalId = pid; // safe even if entry missing: Delete guards below
     if (found) {
       this.form.type = chatEntry && embEntry ? "both" : embEntry ? "embedding" : "chat";
       this.form.id = pid;
@@ -155,7 +154,7 @@ export const store = createStore("customProviders", {
       const kwargs = found.kwargs || {};
       const extra = kwargs.extra_headers || {};
       this.form.api_base = kwargs.api_base || "";
-      this.form.models_endpoint = found.models_list?.endpoint_url || "/v1/models";
+      this.form.models_endpoint = found.models_list?.endpoint_url || "/models";
       this.form.default_base = found.models_list?.default_base || "";
       this.form.api_key_mode = found.api_key_mode || "required";
       this.form.extra_headers_text = Object.entries(extra)
@@ -168,15 +167,27 @@ export const store = createStore("customProviders", {
       this.form.kwargs_text = Object.entries(rest)
         .map(([k, v]) => `${k}=${JSON.stringify(v)}`)
         .join("\n");
-      this._editingOriginalId = pid;
-      this._idManuallyEdited = true;
     } else {
-      // entry not loaded yet: open with id prefilled
+      // entry not loaded yet: open with id prefilled (list may be stale)
       this.form.id = pid;
-      this._idManuallyEdited = true;
     }
+    // Show the existing key as a mask when one is stored in .env
+    this._keyTouched = false;
+    this.form.api_key = this.apiKeyStatus?.[pid] ? KEY_MASK : "";
     this.error = "";
     this._openModal();
+    // refresh key status asynchronously in case it changed elsewhere
+    this.refreshList()
+      .then(() => {
+        if (!this._keyTouched && this._editingOriginalId === pid) {
+          this.form.api_key = this.apiKeyStatus?.[pid] ? KEY_MASK : "";
+        }
+      })
+      .catch(() => {});
+  },
+
+  onApiKeyInput() {
+    this._keyTouched = true;
   },
 
   onNameInput() {
@@ -188,16 +199,6 @@ export const store = createStore("customProviders", {
   onIdInput() {
     this._idManuallyEdited = true;
     this.form.id = slugify(this.form.id);
-  },
-
-  applyPreset(key) {
-    const p = this.presets[key];
-    if (!p) return;
-    this.form.name = p.name;
-    this.form.api_base = p.api_base;
-    this.form.models_endpoint = p.models_endpoint;
-    this.form.litellm_provider = p.litellm_provider;
-    if (!this._idManuallyEdited) this.form.id = slugify(p.name);
   },
 
   _openModal() {
@@ -244,12 +245,17 @@ export const store = createStore("customProviders", {
       name: this.form.name.trim(),
       litellm_provider: this.form.litellm_provider,
       api_base: this.form.api_base.trim(),
-      models_endpoint: this.form.models_endpoint.trim() || "/v1/models",
+      models_endpoint: this.form.models_endpoint.trim() || "/models",
       default_base: this.form.default_base.trim(),
       api_key_mode: this.form.api_key_mode,
       kwargs,
       extra_headers: extra,
       api_key: this.form.api_key,
+      // explicit removal only when editing a provider that HAS a key and the field was cleared
+      remove_key:
+        !!this._editingOriginalId &&
+        !String(this.form.api_key || "").trim() &&
+        !!this.apiKeyStatus?.[this._editingOriginalId],
     };
   },
 
@@ -300,6 +306,22 @@ export const store = createStore("customProviders", {
         }
       }
 
+      // Keep every attached model on the new id: remap the open editor state
+      // (saved presets are migrated server-side by the API handler).
+      if (originalId) {
+        const mc = globalThis.Alpine?.store("modelConfig");
+        if (mc) {
+          const remap = (m) => { if (m && m.provider === originalId) m.provider = payload.id; };
+          for (const list of [mc.presets, mc.globalPresets]) {
+            if (Array.isArray(list)) {
+              for (const p of list) {
+                for (const slot of ["chat", "vision", "utility", "embedding"]) remap(p?.[slot]);
+              }
+            }
+          }
+        }
+      }
+
       const note = originalId ? ` (renamed from '${originalId}')` : "";
       globalThis.justToast?.(`Provider '${payload.name}' saved${note}`, "success");
       if (globalThis.closeModal) globalThis.closeModal();
@@ -312,6 +334,22 @@ export const store = createStore("customProviders", {
       return false;
     } finally {
       this.saving = false;
+    }
+  },
+
+  async revealKey() {
+    const pid = this._editingOriginalId || this.form.id;
+    if (!pid) return;
+    try {
+      const res = await callJsonApi(API, { action: "get_key", id: pid });
+      if (res?.ok && typeof res.key === "string") {
+        this.form.api_key = res.key;
+        return;
+      }
+      // no stored key (or unknown id): drop the mask so it cannot be saved back
+      if (this._editingOriginalId === pid) this.form.api_key = "";
+    } catch (e) {
+      globalThis.justToast?.("Could not load the stored key", "error");
     }
   },
 
@@ -361,13 +399,19 @@ export const store = createStore("customProviders", {
     this.testResult = "";
     try {
       const payload = this._formToPayload();
+      // Editing an existing provider: test the stored key server-side; the
+      // form field may contain only the UI mask, which is not a real key.
+      const editingId = this._editingOriginalId || "";
+      const rawKey = String(payload.api_key || "");
+      const isMask = rawKey && /^\s*[•*]+\s*$/.test(rawKey);
       const res = await callJsonApi(API, {
         action: "test",
+        id: editingId || "",
         api_base: payload.api_base,
         models_endpoint: payload.models_endpoint,
         default_base: payload.default_base,
         extra_headers: payload.extra_headers,
-        api_key: payload.api_key,
+        api_key: isMask || (!editingId && !rawKey) ? "" : rawKey,
       });
       this.testResult = res?.message || (res?.ok ? "Connected." : "Test failed.");
       globalThis.justToast?.(this.testResult, res?.ok ? "success" : "error");
@@ -443,19 +487,19 @@ export const store = createStore("customProviders", {
     if (!entry || !sel.isConnected) return;
     const pid = sel.value;
     const btn = entry.editBtn;
-    if (pid && this.isCustom(pid)) {
-      btn.style.display = "inline-flex";
-      // IMPORTANT: never rewrite the title on every call. The core tooltip store
-      // converts title -> Bootstrap tooltip and strips the attribute; rewriting it
-      // while the tooltip is shown makes Bootstrap re-show it (DOM mutation), which
-      // re-triggers our injector -> infinite observer loop -> page freeze.
-      const t = `Edit custom provider '${pid}'`;
-      if (entry.lastTitle !== t) {
-        entry.lastTitle = t;
-        btn.setAttribute("title", t);
-      }
-    } else {
-      btn.style.display = "none";
+    const custom = !!pid && this.isCustom(pid);
+    // Always visible like the + button; disabled (not hidden) when the current
+    // selection is not custom. Hiding raced Alpine's x-model binding: programmatic
+    // value changes fire no `change` event, so the button stayed hidden until the
+    // next poll or mouse interaction.
+    btn.disabled = !custom;
+    // IMPORTANT: never rewrite the title unless it actually changed. The core
+    // tooltip store converts title -> Bootstrap tooltip; rewriting while shown
+    // re-shows it (DOM mutation) -> observer loop -> page freeze.
+    const t = custom ? `Edit custom provider '${pid}'` : "Edit custom provider";
+    if (entry.lastTitle !== t) {
+      entry.lastTitle = t;
+      btn.setAttribute("title", t);
     }
   },
 
@@ -514,7 +558,7 @@ export const store = createStore("customProviders", {
         editBtn.className = "btn btn-small cp-edit-btn";
         editBtn.title = "Edit custom provider";
         editBtn.innerHTML = '<x-icon name="edit" style="font-size:14px"></x-icon>';
-        editBtn.style.display = "none";
+        editBtn.style.display = "inline-flex";
         editBtn.style.alignItems = "center";
         editBtn.style.padding = "4px 6px";
         editBtn.addEventListener("click", (e) => {
