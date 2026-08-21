@@ -1,5 +1,3 @@
-![Custom Providers](webui/thumbnail.png)
-
 # Custom Providers for Agent Zero
 
 **Add and manage custom model providers directly from the Agent Zero UI — no YAML editing, no server restart.**
